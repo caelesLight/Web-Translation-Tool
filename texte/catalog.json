@@ -1,0 +1,14 @@
+[
+  {
+    "id": "example1",
+    "title": "example1",
+    "file": "texte/example1.json",
+    "language": "id"
+  },
+  {
+    "id": "example2",
+    "title": "example2",
+    "file": "texte/example2.json",
+    "language": "es"
+  }
+]

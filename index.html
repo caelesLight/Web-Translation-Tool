@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sprach-Lern-Reader</title>
+<style>
+:root{
+  --bg:#0f1724; --card:#0b1220; --muted:#94a3b8; --accent:#7c3aed; --glass: rgba(255,255,255,0.02);
+  --text:#e6eef8; --radius:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:var(--text);background:linear-gradient(180deg,#071029 0%, #071024 60%);}
+.app{display:grid;grid-template-columns:1fr 320px;gap:24px;min-height:100vh;padding:36px}
+.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:var(--radius);padding:20px;box-shadow:0 6px 30px rgba(2,6,23,0.6);}
+header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+header h1{font-size:20px;margin:0}
+.controls{margin-left:auto;display:flex;gap:10px;align-items:center}
+button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+button.primary{background:linear-gradient(90deg,var(--accent),#4f46e5);border:none}
+main.reader{padding:18px;font-size:20px;line-height:1.9;overflow:auto;max-height:78vh;word-break:break-word}
+.word{position:relative;cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.06);padding:2px 0;border-radius:6px;display:inline-block;transition:all .18s ease}
+.word.highlight{background:linear-gradient(90deg, rgba(124,58,237,0.12), rgba(79,70,229,0.06));box-shadow:0 6px 22px rgba(79,70,229,0.06);outline:1px solid rgba(124,58,237,0.14);transform:translateY(-1px)}
+.tooltip{position:fixed;pointer-events:none;background:var(--card);padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);font-size:14px;color:var(--text);max-width:360px;box-shadow:0 6px 20px rgba(2,6,23,0.6);transform:translate(-50%,-120%);z-index:999;transition:opacity .12s ease}
+.tooltip.hidden{opacity:0;visibility:hidden}
+.tooltip.visible{opacity:1;visibility:visible}
+aside{min-width:300px}
+.sidebar-list{display:flex;flex-direction:column;gap:10px}
+.item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;background:var(--glass);border:1px solid rgba(255,255,255,0.02);cursor:pointer}
+.item.active{outline:2px solid rgba(124,58,237,0.18);box-shadow:0 8px 24px rgba(124,58,237,0.06)}
+footer.info{margin-top:10px;color:var(--muted);font-size:13px}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--card);padding:18px;border-radius:12px;box-shadow:0 20px 60px rgba(2,6,23,0.6);z-index:1200;max-width:720px;width:90%}
+.modal h3{margin:0 0 8px 0}
+.modal .close{margin-left:auto}
+.hidden{display:none}
+@media (max-width:860px){.app{grid-template-columns:1fr;padding:16px}.sidebar{order:2}}
+code{background:rgba(255,255,255,0.02);padding:2px 6px;border-radius:6px;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="card">
+    <header>
+      <div>
+        <h1>Sprach-Lern-Reader</h1>
+        <div style="color:var(--muted);font-size:13px">Hover = schnelle Übersetzung → Klick = Detail</div>
+      </div>
+      <div class="controls">
+        <button id="playBtn">▶️ Play (TTS)</button>
+        <button id="showAllBtn" class="primary">Übersetzung (Deutsch)</button>
+      </div>
+    </header>
+
+    <main id="reader" class="reader" aria-live="polite">
+      Lade Texte...
+    </main>
+
+    <footer class="info">Tip: Lege deine JSON-Dateien in den Ordner <code>texte/</code> und erstelle eine <code>catalog.json</code> mit einer Liste der Dateien. (Siehe Anleitung)</footer>
+  </section>
+
+  <aside class="card sidebar">
+    <h3 style="margin-top:0">Texte</h3>
+    <div id="list" class="sidebar-list"></div>
+    <div style="margin-top:16px;color:var(--muted);font-size:13px">Dateien liegen lokal im selben Ordner oder unter <code>texte/</code></div>
+  </aside>
+</div>
+
+<div id="tooltip" class="tooltip hidden"></div>
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div style="display:flex;align-items:center;gap:12px">
+    <h3 id="modalTitle">Wort</h3>
+    <button id="closeModal" class="close">✖</button>
+  </div>
+  <div id="modalBody" style="margin-top:8px"></div>
+</div>
+
+<script>
+// ---------- Konfiguration ----------
+const CATALOG = 'texte/catalog.json';
+
+// ---------- Helpers ----------
+const el=q=>document.querySelector(q)
+const create=(tag,props={},children=[])=>{
+  const e=document.createElement(tag);
+  Object.assign(e,props);
+  children.forEach(c=>e.appendChild(typeof c==='string'?document.createTextNode(c):c));
+  return e;
+}
+
+// normalize keys & tokens
+function normalizeText(s){
+  if(!s && s!==0) return '';
+  return String(s).normalize('NFC')
+    .replace(/[\u2010-\u2015]/g,'-')
+    .replace(/[\u2018\u2019\u201B\u2032]/g,"'")
+    .replace(/\s+/g,' ')
+    .trim().toLowerCase();
+}
+
+// tokenize (letters + '-' + apostrophe are part of word)
+function tokenizePreserve(text){
+  if(!text) return [];
+  const regex=/[\p{L}\u0027\u2019\u2018\u201B\u2032-]+|[^\p{L}\u0027\u2019\u2018\u201B\u2032-]+/gu;
+  return text.match(regex)||[];
+}
+
+function escapeHtml(str){return String(str).replace(/[&<>\"]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));}
+
+// ---------- App state ----------
+const reader = el('#reader'), listEl = el('#list'), tooltip = el('#tooltip'), modal = el('#modal'), modalBody = el('#modalBody'), modalTitle = el('#modalTitle');
+
+let currentJson=null;
+let currentNormalizedDict={};
+let phraseTokenMap=[];
+
+// ---------- Loading ----------
+async function loadCatalog(){
+  try{
+    const res = await fetch(CATALOG);
+    if(!res.ok) throw new Error('catalog not found');
+    const catalog = await res.json();
+    return catalog;
+  }catch(e){
+    console.warn('catalog.json nicht gefunden, fallback.', e);
+    return null;
+  }
+}
+
+async function loadTextFile(path){
+  try{
+    const res = await fetch(path);
+    if(!res.ok) throw new Error('Datei nicht gefunden: ' + path);
+    return await res.json();
+  }catch(e){
+    alert('Fehler beim Laden der Datei: ' + path + '. ' + e.message);
+    throw e;
+  }
+}
+
+// ---------- Sidebar ----------
+function populateList(catalog){
+  listEl.innerHTML='';
+  if(!catalog||catalog.length===0){
+    const note = create('div',{innerHTML:`Keine catalog.json gefunden.`});
+    listEl.appendChild(note);
+    return;
+  }
+  catalog.forEach(item=>{
+    const it = create('div',{className:'item',innerHTML:`<div><strong>${escapeHtml(item.title||item.id||item.file)}</strong><div style="color:var(--muted);font-size:13px">${escapeHtml(item.lang||item.language||'')}</div></div><div style="opacity:0.9">▶</div>`});
+    it.addEventListener('click',async ()=>{
+      listEl.querySelectorAll('.item').forEach(n=>n.classList.remove('active'));
+      it.classList.add('active');
+      const path=item.file||('texte/' + (item.filename||item.id||''));
+      currentJson = await loadTextFile(path);
+      prepareNormalizedDict(currentJson.dictionary||currentJson.dict||{});
+      renderCurrent();
+    });
+    listEl.appendChild(it);
+  });
+}
+
+// ---------- Dictionary ----------
+function prepareNormalizedDict(dict){
+  currentNormalizedDict={};
+  Object.keys(dict||{}).forEach(k=>{
+    currentNormalizedDict[normalizeText(k)]=dict[k];
+  });
+}
+
+// ---------- Render ----------
+function renderWithDictionary(text,dict){
+  const tokens = tokenizePreserve(text);
+  const resultFragments=[];
+  phraseTokenMap=[];
+
+  const keys = Object.keys(dict||{}).sort((a,b)=>{
+    const aw=a.split(/\s+/).length, bw=b.split(/\s+/).length;
+    if(aw!==bw) return bw-aw;
+    return b.length-a.length;
+  });
+
+  for(let i=0;i<tokens.length;){
+    if(/^[\p{L}\u0027\u2019\u2018\u201B\u2032-]+$/u.test(tokens[i])){
+      let matchedKey=null; let matchedEnd=i;
+      for(const key of keys){
+        const parts=key.split(/\s+/);
+        let ti=i; let ok=true;
+        for(let p=0;p<parts.length;p++){
+          while(ti<tokens.length && !/^[\p{L}\u0027\u2019\u2018\u201B\u2032-]+$/u.test(tokens[ti])) ti++;
+          if(ti>=tokens.length||normalizeText(tokens[ti])!==normalizeText(parts[p])){ok=false;break;}
+          ti++;
+        }
+        if(ok){matchedKey=key;matchedEnd=ti;break;}
+      }
+      if(matchedKey){
+        const frag=tokens.slice(i,matchedEnd).join('');
+        const span = `<span class="word" data-key="${escapeHtml(matchedKey)}" data-start="${i}" data-end="${matchedEnd-1}">${escapeHtml(frag)}</span>`;
+        resultFragments.push(span);
+        phraseTokenMap.push({start:i,end:matchedEnd-1,key:matchedKey});
+        i=matchedEnd; continue;
+      } else {
+        resultFragments.push(`<span class="word" data-key="${escapeHtml(tokens[i])}" data-start="${i}" data-end="${i}">${escapeHtml(tokens[i])}</span>`);
+        i++; continue;
+      }
+    } else {
+      resultFragments.push(escapeHtml(tokens[i])); i++;
+    }
+  }
+  return resultFragments.join('');
+}
+
+function renderCurrent(){
+  if(!currentJson){ reader.innerText='Keine Datei geladen.'; return; }
+  prepareNormalizedDict(currentJson.dictionary||currentJson.dict||{});
+  const html = renderWithDictionary(currentJson.original_text||currentJson.content||'',currentJson.dictionary||currentJson.dict||{});
+  reader.innerHTML=html;
+  attachWordListeners();
+}
+
+// ---------- Word Listeners ----------
+function attachWordListeners(){
+  reader.querySelectorAll('.word').forEach(w=>{
+    w.addEventListener('mouseenter',(e)=>{
+      const key=w.dataset.key||'';
+      const t=currentNormalizedDict[normalizeText(key)]||currentNormalizedDict[normalizeText(w.innerText)]||'—';
+      tooltip.innerText=t;
+      tooltip.classList.remove('hidden'); tooltip.classList.add('visible');
+
+      // Highlight all tokens in phrase
+      const start=parseInt(w.dataset.start), end=parseInt(w.dataset.end);
+      reader.querySelectorAll('.word').forEach(s=>{
+        const sStart=parseInt(s.dataset.start), sEnd=parseInt(s.dataset.end);
+        if(sStart>=start && sEnd<=end){ s.classList.add('highlight'); }
+      });
+
+      const rect=w.getBoundingClientRect();
+      const left=rect.left+rect.width/2;
+      const top=rect.top-8;
+      tooltip.style.left=`${left}px`; tooltip.style.top=`${top}px`;
+    });
+    w.addEventListener('mouseleave',()=>{
+      tooltip.classList.remove('visible'); tooltip.classList.add('hidden');
+      reader.querySelectorAll('.word').forEach(s=>s.classList.remove('highlight'));
+    });
+    w.addEventListener('click',()=>{
+      const key=w.dataset.key||'';
+      const t=currentNormalizedDict[normalizeText(key)]||currentNormalizedDict[normalizeText(w.innerText)]||'Keine Übersetzung vorhanden.';
+      modalTitle.innerText=w.innerText;
+      modalBody.innerHTML=`<div style="color:var(--muted);font-size:13px">Schlüssel: <code>${escapeHtml(key)}</code></div><p style="margin-top:8px">${escapeHtml(t)}</p>`;
+      modal.classList.remove('hidden');
+    });
+  });
+}
+
+el('#closeModal').addEventListener('click',()=>modal.classList.add('hidden'));
+
+// ---------- Show full translation ----------
+el('#showAllBtn').addEventListener('click',()=>{
+  if(!currentJson) return alert('Bitte zuerst einen Text auswählen.');
+  if(currentJson.full_translation){
+    if(reader.dataset.mode==='full'){ renderCurrent(); delete reader.dataset.mode; el('#showAllBtn').innerText='Übersetzung (Deutsch)'; }
+    else{ reader.innerText=currentJson.full_translation; reader.dataset.mode='full'; el('#showAllBtn').innerText='Zurück zur Originalsprache'; }
+  } else {
+    const dict=currentJson.dictionary||currentJson.dict||{};
+    const tokens=tokenizePreserve(currentJson.original_text||currentJson.content||'');
+    const keys=Object.keys(dict).sort((a,b)=>b.length-a.length);
+    let i=0,out='';
+    while(i<tokens.length){
+      if(/^[\p{L}\u0027\u2019\u2018\u201B\u2032-]+$/u.test(tokens[i])){
+        let matched=null,matchLen=0;
+        for(const key of keys){
+          const parts=key.split(/\s+/);
+          let ti=i,k=0,ok=true;
+          while(k<parts.length){
+            while(ti<tokens.length && !/^[\p{L}\u0027\u2019\u2018\u201B\u2032-]+$/u.test(tokens[ti])) ti++;
+            if(ti>=tokens.length||normalizeText(tokens[ti])!==normalizeText(parts[k])){ok=false;break;}
+            ti++; k++;
+          }
+          if(ok){matched=key;matchLen=k; break;}
+        }
+        if(matched){
+          out+=(dict[matched]||dict[normalizeText(matched)]||matched);
+          let found=0,j=i; while(j<tokens.length && found<matchLen){ if(/^[\p{L}\u0027\u2019\u2018\u201B\u2032-]+$/u.test(tokens[j])) found++; j++; }
+          i=j; continue;
+        } else { out+=tokens[i]; i++; continue; }
+      } else { out+=tokens[i]; i++; }
+    }
+    reader.innerHTML='<div style="white-space:pre-wrap">'+escapeHtml(out)+'</div>'; reader.dataset.mode='full'; el('#showAllBtn').innerText='Zurück zur Originalsprache';
+  }
+});
+
+// ---------- TTS ----------
+el('#playBtn').addEventListener('click',()=>{
+  if(!currentJson) return alert('Bitte zuerst einen Text auswählen.');
+  const text=currentJson.original_text||currentJson.content||'';
+  const lang=currentJson.language||currentJson.lang||'';
+  if('speechSynthesis' in window){
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang=currentJson.language||currentJson.lang||detectLangForSpeech(currentJson.language);
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } else alert('TTS nicht verfügbar.');
+});
+function detectLangForSpeech(code){ if(!code) return ''; if(code.length===2) return code+'-'+code.toUpperCase(); return code; }
+
+// ---------- Init ----------
+(async ()=>{
+  const catalog = await loadCatalog();
+  if(catalog && catalog.length > 0) {
+    populateList(catalog);
+  } else {
+    const note = create('div', {innerHTML: 'Keine gültige catalog.json gefunden. Bitte fügen Sie eine gültige Datei hinzu.'});
+    listEl.appendChild(note);
+  }
+})();
+</script>
+</body>
+</html>

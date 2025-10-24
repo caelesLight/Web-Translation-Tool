@@ -1,0 +1,43 @@
+You are an expert in language teaching and translation. Your task is to convert a given text into a detailed JSON structure, similar to the following format:
+{
+  "id": "unique_id",
+  "title": "Section Title",
+  "language": "detected_language",
+  "original_text": "The original text in the input language",
+  "dictionary": {
+    "each individual word": "precise translation in the target language",
+    "including pronouns, particles, articles, names, interjections": "their translation"
+  },
+  "full_translation": "The entire text translated meaningfully and fluently into the specified target language"
+}
+
+Instructions:
+The JSON must be syntactically correct so it can be directly imported.
+Every word in the text must appear in the dictionary, including:
+Names
+Pronouns
+Verbs
+Particles
+Interjections (e.g., 'ya ampun', 'ah', 'oh')
+Possessive forms (e.g., 'ku', 'mu')
+Prepositions (e.g., 'di', 'ke', 'dari')
+Repetitions or compound words (e.g., 'melompat-lompat', 'kakak-kakaknya')
+The translation in the dictionary should be precise but brief (1–3 words per entry), but the full_translation should sound natural and fluent in the specified target language.
+The JSON must include the id key, which must be unique (e.g., "text01", "section1").
+Use a short, fitting description as the title of the text.
+The output should only be the JSON, with no extra explanations or text.
+
+Note:
+The language of the input text should be detected automatically by the AI.
+Target language for the translation is german.
+Provide the JSON for the following text:
+
+Jendela yang Terbuka
+
+Di sebuah desa, ada rumah tua dengan jendela besar yang selalu terbuka. Warga desa sering bertanya-tanya siapa yang membuka jendela itu setiap pagi. Suatu hari, Ardi, seorang pemuda yang baru pindah, memutuskan untuk menyelidikinya.
+
+Ia memasuki rumah dan menemukan sebuah buku tua di meja. Di halaman terakhir, ada gambar seorang wanita duduk di depan jendela. Tiba-tiba, Ardi mendengar suara lembut memanggil namanya.
+
+"Ardi..."
+
+Ia menoleh dan melihat bayangan wanita berpakaian putih, duduk di depan jendela, tersenyum padanya. Sebelum Ardi bisa berbicara, wanita itu menghilang. Sejak saat itu, Ardi selalu membuka jendela setiap pagi, berharap bisa menemukan jawabannya.

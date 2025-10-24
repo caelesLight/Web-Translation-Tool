@@ -1,0 +1,41 @@
+You are an expert in language teaching and translation. Your task is to convert a given text into a detailed JSON structure, similar to the following format:
+{
+  "id": "unique_id",
+  "title": "Section Title",
+  "language": "detected_language",
+  "original_text": "The original text in the input language",
+  "dictionary": {
+    "each individual word": "precise translation in the target language",
+    "including pronouns, particles, articles, names, interjections": "their translation"
+  },
+  "full_translation": "The entire text translated meaningfully and fluently into the specified target language"
+}
+
+Instructions:
+The JSON must be syntactically correct so it can be directly imported.
+Every word in the text must appear in the dictionary, including:
+Names
+Pronouns
+Verbs
+Particles
+Interjections (e.g., 'ya ampun', 'ah', 'oh')
+Possessive forms (e.g., 'ku', 'mu')
+Prepositions (e.g., 'di', 'ke', 'dari')
+Repetitions or compound words (e.g., 'melompat-lompat', 'kakak-kakaknya')
+The translation in the dictionary should be precise but brief (1–3 words per entry), but the full_translation should sound natural and fluent in the specified target language.
+The JSON must include the id key, which must be unique (e.g., "text01", "section1").
+Use a short, fitting description as the title of the text.
+The output should only be the JSON, with no extra explanations or text.
+
+Note:
+The language of the input text should be detected automatically by the AI.
+The target language for the translation is german
+Provide the JSON for the following text:
+
+Un día en el parque
+
+Era un día soleado y Carlos decidió ir al parque. Caminó por el sendero mientras escuchaba el canto de los pájaros. Se sentó en una banca cerca de un árbol grande. Miró a su alrededor y vio a niños jugando, a personas leyendo libros y a una familia haciendo un picnic.
+
+Carlos sacó su libro favorito y comenzó a leer, pero pronto se dio cuenta de que lo rodeaba la calma y la belleza del parque. Cerró el libro y cerró los ojos por un momento, disfrutando del aire fresco.
+
+El día pasó rápido y Carlos se sintió feliz de haber disfrutado de un momento tranquilo en la naturaleza.
