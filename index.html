@@ -16,8 +16,10 @@ body{margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe
 header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
 header h1{font-size:20px;margin:0}
 .controls{margin-left:auto;display:flex;gap:10px;align-items:center}
-button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600;transition:all .2s}
+button:hover{background:rgba(255,255,255,0.05)}
 button.primary{background:linear-gradient(90deg,var(--accent),#4f46e5);border:none}
+button.primary:hover{opacity:0.9}
 main.reader{padding:18px;font-size:20px;line-height:1.9;overflow:auto;max-height:78vh;word-break:break-word}
 .word{position:relative;cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.06);padding:2px 0;border-radius:6px;display:inline-block;transition:all .18s ease}
 .word.highlight{background:linear-gradient(90deg, rgba(124,58,237,0.12), rgba(79,70,229,0.06));box-shadow:0 6px 22px rgba(79,70,229,0.06);outline:1px solid rgba(124,58,237,0.14);transform:translateY(-1px)}
@@ -26,13 +28,20 @@ main.reader{padding:18px;font-size:20px;line-height:1.9;overflow:auto;max-height
 .tooltip.visible{opacity:1;visibility:visible}
 aside{min-width:300px}
 .sidebar-list{display:flex;flex-direction:column;gap:10px}
-.item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;background:var(--glass);border:1px solid rgba(255,255,255,0.02);cursor:pointer}
+.item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;background:var(--glass);border:1px solid rgba(255,255,255,0.02);cursor:pointer;transition:all .2s}
+.item:hover{background:rgba(255,255,255,0.04)}
 .item.active{outline:2px solid rgba(124,58,237,0.18);box-shadow:0 8px 24px rgba(124,58,237,0.06)}
 footer.info{margin-top:10px;color:var(--muted);font-size:13px}
-.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--card);padding:18px;border-radius:12px;box-shadow:0 20px 60px rgba(2,6,23,0.6);z-index:1200;max-width:720px;width:90%}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--card);padding:18px;border-radius:12px;box-shadow:0 20px 60px rgba(2,6,23,0.6);z-index:1200;max-width:720px;width:90%;max-height:85vh;overflow-y:auto}
 .modal h3{margin:0 0 8px 0}
 .modal .close{margin-left:auto}
+.modal textarea{width:100%;min-height:300px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);color:var(--text);padding:12px;border-radius:8px;font-family:monospace;font-size:13px;resize:vertical}
+.modal textarea:focus{outline:2px solid var(--accent);background:rgba(255,255,255,0.04)}
 .hidden{display:none}
+.import-btn{background:linear-gradient(90deg,#10b981,#059669);border:none;margin-bottom:16px;width:100%}
+.status{padding:10px;border-radius:8px;margin-top:10px;font-size:13px}
+.status.success{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);color:#10b981}
+.status.error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444}
 @media (max-width:860px){.app{grid-template-columns:1fr;padding:16px}.sidebar{order:2}}
 code{background:rgba(255,255,255,0.02);padding:2px 6px;border-radius:6px;font-family:monospace}
 </style>
@@ -55,17 +64,20 @@ code{background:rgba(255,255,255,0.02);padding:2px 6px;border-radius:6px;font-fa
       Lade Texte...
     </main>
 
-    <footer class="info">Tip: Lege deine JSON-Dateien in den Ordner <code>texte/</code> und erstelle eine <code>catalog.json</code> mit einer Liste der Dateien. (Siehe Anleitung)</footer>
+    <footer class="info">Tip: Nutze den Import-Button in der Sidebar um neue Texte hinzuzufügen! 📥</footer>
   </section>
 
   <aside class="card sidebar">
+    <button id="importBtn" class="import-btn">📥 JSON Import</button>
     <h3 style="margin-top:0">Texte</h3>
     <div id="list" class="sidebar-list"></div>
-    <div style="margin-top:16px;color:var(--muted);font-size:13px">Dateien liegen lokal im selben Ordner oder unter <code>texte/</code></div>
+    <div style="margin-top:16px;color:var(--muted);font-size:13px">Dateien liegen lokal im <code>texte/</code> Ordner</div>
   </aside>
 </div>
 
 <div id="tooltip" class="tooltip hidden"></div>
+
+<!-- Detail Modal -->
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
   <div style="display:flex;align-items:center;gap:12px">
     <h3 id="modalTitle">Wort</h3>
@@ -74,9 +86,27 @@ code{background:rgba(255,255,255,0.02);padding:2px 6px;border-radius:6px;font-fa
   <div id="modalBody" style="margin-top:8px"></div>
 </div>
 
+<!-- Import Modal -->
+<div id="importModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+    <h3>JSON Import</h3>
+    <button id="closeImportModal" class="close">✖</button>
+  </div>
+  <p style="color:var(--muted);font-size:13px;margin:0 0 12px 0">
+    Füge das komplette JSON ein, das du von der KI bekommen hast:
+  </p>
+  <textarea id="jsonInput" placeholder='{"id": "mein-text", "title": "Mein Titel", ...}'></textarea>
+  <div style="display:flex;gap:10px;margin-top:12px">
+    <button id="importSubmit" class="primary" style="flex:1">✓ Importieren</button>
+    <button id="importCancel" style="flex:1">Abbrechen</button>
+  </div>
+  <div id="importStatus" class="hidden"></div>
+</div>
+
 <script>
 // ---------- Konfiguration ----------
 const CATALOG = 'texte/catalog.json';
+const IMPORT_API = 'http://localhost:3001/api/import';
 
 // ---------- Helpers ----------
 const el=q=>document.querySelector(q)
@@ -87,7 +117,6 @@ const create=(tag,props={},children=[])=>{
   return e;
 }
 
-// normalize keys & tokens
 function normalizeText(s){
   if(!s && s!==0) return '';
   return String(s).normalize('NFC')
@@ -97,7 +126,6 @@ function normalizeText(s){
     .trim().toLowerCase();
 }
 
-// tokenize (letters + '-' + apostrophe are part of word)
 function tokenizePreserve(text){
   if(!text) return [];
   const regex=/[\p{L}\u0027\u2019\u2018\u201B\u2032-]+|[^\p{L}\u0027\u2019\u2018\u201B\u2032-]+/gu;
@@ -108,6 +136,7 @@ function escapeHtml(str){return String(str).replace(/[&<>\"]/g,s=>({'&':'&amp;',
 
 // ---------- App state ----------
 const reader = el('#reader'), listEl = el('#list'), tooltip = el('#tooltip'), modal = el('#modal'), modalBody = el('#modalBody'), modalTitle = el('#modalTitle');
+const importModal = el('#importModal'), jsonInput = el('#jsonInput'), importStatus = el('#importStatus');
 
 let currentJson=null;
 let currentNormalizedDict={};
@@ -116,19 +145,19 @@ let phraseTokenMap=[];
 // ---------- Loading ----------
 async function loadCatalog(){
   try{
-    const res = await fetch(CATALOG);
+    const res = await fetch(CATALOG + '?t=' + Date.now());
     if(!res.ok) throw new Error('catalog not found');
     const catalog = await res.json();
     return catalog;
   }catch(e){
-    console.warn('catalog.json nicht gefunden, fallback.', e);
+    console.warn('catalog.json nicht gefunden', e);
     return null;
   }
 }
 
 async function loadTextFile(path){
   try{
-    const res = await fetch(path);
+    const res = await fetch(path + '?t=' + Date.now());
     if(!res.ok) throw new Error('Datei nicht gefunden: ' + path);
     return await res.json();
   }catch(e){
@@ -137,11 +166,84 @@ async function loadTextFile(path){
   }
 }
 
+// ---------- Import ----------
+el('#importBtn').addEventListener('click', () => {
+  importModal.classList.remove('hidden');
+  jsonInput.value = '';
+  importStatus.className = 'hidden';
+});
+
+el('#closeImportModal').addEventListener('click', () => {
+  importModal.classList.add('hidden');
+});
+
+el('#importCancel').addEventListener('click', () => {
+  importModal.classList.add('hidden');
+});
+
+el('#importSubmit').addEventListener('click', async () => {
+  const jsonText = jsonInput.value.trim();
+
+  if (!jsonText) {
+    showImportStatus('Bitte JSON-Text eingeben!', 'error');
+    return;
+  }
+
+  try {
+    // Validiere JSON
+    const jsonData = JSON.parse(jsonText);
+
+    if (!jsonData.id || !jsonData.title || !jsonData.original_text) {
+      showImportStatus('JSON muss mindestens id, title und original_text enthalten!', 'error');
+      return;
+    }
+
+    // Sende an Backend
+    showImportStatus('Importiere...', 'success');
+
+    const response = await fetch(IMPORT_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jsonData)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      showImportStatus(result.error || 'Fehler beim Import', 'error');
+      return;
+    }
+
+    showImportStatus(result.message || 'Import erfolgreich!', 'success');
+
+    // Warte kurz, dann aktualisiere Liste
+    setTimeout(async () => {
+      const catalog = await loadCatalog();
+      populateList(catalog);
+      importModal.classList.add('hidden');
+    }, 1500);
+
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      showImportStatus('Ungültiges JSON-Format! Überprüfe die Syntax.', 'error');
+    } else if (error.message.includes('Failed to fetch')) {
+      showImportStatus('Backend nicht erreichbar! Starte: node server.js', 'error');
+    } else {
+      showImportStatus('Fehler: ' + error.message, 'error');
+    }
+  }
+});
+
+function showImportStatus(message, type) {
+  importStatus.className = 'status ' + type;
+  importStatus.textContent = message;
+}
+
 // ---------- Sidebar ----------
 function populateList(catalog){
   listEl.innerHTML='';
   if(!catalog||catalog.length===0){
-    const note = create('div',{innerHTML:`Keine catalog.json gefunden.`});
+    const note = create('div',{innerHTML:`Keine Texte vorhanden. Nutze den Import!`});
     listEl.appendChild(note);
     return;
   }
@@ -226,7 +328,6 @@ function attachWordListeners(){
       tooltip.innerText=t;
       tooltip.classList.remove('hidden'); tooltip.classList.add('visible');
 
-      // Highlight all tokens in phrase
       const start=parseInt(w.dataset.start), end=parseInt(w.dataset.end);
       reader.querySelectorAll('.word').forEach(s=>{
         const sStart=parseInt(s.dataset.start), sEnd=parseInt(s.dataset.end);
@@ -308,7 +409,7 @@ function detectLangForSpeech(code){ if(!code) return ''; if(code.length===2) ret
   if(catalog && catalog.length > 0) {
     populateList(catalog);
   } else {
-    const note = create('div', {innerHTML: 'Keine gültige catalog.json gefunden. Bitte fügen Sie eine gültige Datei hinzu.'});
+    const note = create('div', {innerHTML: 'Keine Texte vorhanden. Nutze den Import-Button! 📥'});
     listEl.appendChild(note);
   }
 })();

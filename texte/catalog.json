@@ -10,5 +10,11 @@
     "title": "example2",
     "file": "texte/example2.json",
     "language": "es"
+  },
+  {
+    "id": "example03",
+    "title": "Ava's Peaceful Morning",
+    "file": "texte/example03.json",
+    "language": "english"
   }
 ]
